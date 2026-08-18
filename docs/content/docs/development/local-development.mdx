@@ -1,0 +1,72 @@
+---
+title: 本地开发
+description: 前端优先的本地开发方式
+---
+
+# 本地开发
+
+当前主应用由 Vite 前端和本机磁盘存储服务组成。AI 请求仍由浏览器前台直连用户自己的 OpenAI 兼容接口；画布、素材、生成记录、配置和原始媒体由本机服务写入仓库根目录的 `data/`。
+
+## 1. 安装依赖
+
+```bash
+bun install --cwd web
+```
+
+## 2. 启动项目
+
+在仓库根目录执行：
+
+```bash
+make
+```
+
+前端默认访问：
+
+```text
+http://localhost:3000
+```
+
+`make` 会同时启动：
+
+- Vite 前端。
+- 仅监听 `127.0.0.1` 的 Bun 本地存储服务。
+
+任一进程退出时，另一进程会一起停止。本地存储服务不可用时，前端会显示阻塞提示，不会回退到浏览器 IndexedDB。
+
+## 3. 本地数据
+
+运行后会自动创建：
+
+```text
+data/
+├── settings.json
+├── app.json
+├── media-index.json
+├── projects/
+├── library/
+└── workbenches/
+```
+
+本地上传和 AI 生成的图片、视频、音频都按原始字节保存，不转 Base64、不转码、不压缩。`data/` 已加入 `.gitignore`。
+
+旧浏览器 IndexedDB 数据不会迁移、读取或删除。首次启用磁盘存储后，项目列表从空数据目录开始。
+
+## 4. 配置模型
+
+打开右上角配置弹窗，填写自己的 `Base URL`、`API Key` 和模型名。配置会明文写入 `data/settings.json`。第三方提示词和 WebDAV 仍由浏览器前端直连。
+
+## 5. 启动文档站
+
+如果需要单独调整文档站，在 `docs` 目录执行：
+
+```bash
+bun run dev
+```
+
+## 常见场景
+
+- 改画布、页面和交互：主要看 `web/`
+- 改本地磁盘存储：主要看 `local-storage/`
+- 改提示词缓存：主要看 `web/src/services/api/prompts.ts`
+- 改文档站内容：主要看 `docs/content/docs/`

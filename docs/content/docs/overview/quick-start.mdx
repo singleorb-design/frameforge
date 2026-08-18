@@ -1,0 +1,36 @@
+---
+title: 快速开始
+description: 用最少步骤把影格工坊跑起来
+---
+
+# 快速开始
+
+当前完整模式需要同时运行前端和本机磁盘存储服务，优先在本地通过 `make` 启动。
+
+## 本地启动
+
+```bash
+git clone git@github.com:basketikun/frameforge.git
+cd frameforge
+bun install --cwd web
+make
+```
+
+启动后访问：
+
+```text
+http://localhost:3000
+```
+
+## 首次使用建议
+
+- 先打开右上角配置弹窗，填入自己的 `Base URL`、`API Key` 和模型名。
+- 如果需要提示词仓库内容，打开 `/prompts` 会由浏览器前端直连拉取并缓存到 IndexedDB。
+- 如果需要跨设备同步画布、素材和生成记录，可在配置弹窗中填写 WebDAV。
+
+## 说明
+
+- 画布、素材、生成记录、应用设置和原始媒体保存在仓库根目录的 `data/`。
+- AI API Key 明文保存在 `data/settings.json`，并由前端直接请求 OpenAI 兼容接口。
+- 旧浏览器 IndexedDB 数据不会迁移、读取或删除。
+- 当前 Vercel、Render 和纯静态 Docker 部署尚未接入本机磁盘存储服务，不具备完整持久化能力。

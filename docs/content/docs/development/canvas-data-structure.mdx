@@ -1,0 +1,252 @@
+---
+title: 画布数据结构
+description: 画布本地存储、节点结构、媒体文件与清理机制
+---
+
+# 画布数据结构
+
+本文档说明当前画布的磁盘目录、项目 JSON、原始媒体和清理机制。
+
+## 当前存储位置
+
+`data/` 是当前应用用户数据的唯一事实源：
+
+```text
+data/
+├── settings.json
+├── app.json
+├── media-index.json
+├── projects/
+│   ├── index.json
+│   └── <project-id>/
+│       ├── project.json
+│       └── assets/
+├── library/
+│   ├── library.json
+│   └── assets/
+└── workbenches/
+    ├── image/
+    ├── video/
+    └── audio/
+```
+
+- `settings.json`：API Key、Base URL、模型、插件、个人提示词和提示词源。
+- `app.json`：主题、Agent 配置、面板尺寸和快捷工具偏好。
+- `projects/index.json`：项目摘要与最近更新时间。
+- `projects/<project-id>/project.json`：完整画布与递增 revision。
+- `library/library.json`：“我的素材”元数据。
+- `workbenches/*/records.json`：生图、视频和音频工作台记录。
+- `media-index.json`：`storageKey` 到原始媒体相对路径、MIME、大小和 SHA-256 的映射。
+
+旧浏览器 IndexedDB 数据不会读取、迁移或删除。远程提示词缓存仍可放在 IndexedDB，因为它可以重新下载，不属于用户事实数据。
+
+JSON 使用 `.part` 原子替换，并保留一份未压缩 `.bak`。正式文件损坏时会保留 `.corrupt` 并从可解析的 `.bak` 恢复。
+
+## 画布项目结构
+
+每个画布项目是一个 `CanvasProject`：
+
+```ts
+type CanvasProject = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  nodes: CanvasNodeData[];
+  connections: CanvasConnection[];
+  chatSessions: CanvasAssistantSession[];
+  activeChatId: string | null;
+  backgroundMode: "lines" | "dots" | "blank";
+  viewport: { x: number; y: number; k: number };
+};
+```
+
+字段说明：
+
+- `id`：画布项目 ID，当前前端生成。
+- `title`：画布名称。
+- `createdAt` / `updatedAt`：ISO 字符串。
+- `nodes`：画布节点列表。
+- `connections`：节点连线列表。
+- `chatSessions`：右侧画布助手会话。
+- `activeChatId`：当前选中的助手会话 ID。
+- `backgroundMode`：画布背景模式。
+- `viewport`：视口变换，`x/y` 是屏幕平移，`k` 是缩放比例。
+
+## 节点结构
+
+每个节点是一个 `CanvasNodeData`：
+
+```ts
+type CanvasNodeData = {
+  id: string;
+  type: "image" | "text" | "config" | "video";
+  title: string;
+  position: { x: number; y: number };
+  width: number;
+  height: number;
+  metadata?: CanvasNodeMetadata;
+};
+```
+
+通用字段：
+
+- `id`：节点 ID。
+- `type`：节点类型，当前有图片、文本、生成配置、视频四类。
+- `title`：节点标题。
+- `position`：画布世界坐标，不是屏幕坐标。
+- `width` / `height`：画布世界坐标下的节点尺寸。
+- `metadata`：节点内容和业务状态。
+
+`metadata` 当前常用字段：
+
+```ts
+type CanvasNodeMetadata = {
+  content?: string;
+  prompt?: string;
+  status?: "idle" | "success" | "loading" | "error";
+  errorDetails?: string;
+  fontSize?: number;
+  generationMode?: "text" | "image" | "video";
+  model?: string;
+  size?: string;
+  count?: number;
+  naturalWidth?: number;
+  naturalHeight?: number;
+  freeResize?: boolean;
+  isBatchRoot?: boolean;
+  batchRootId?: string;
+  batchChildIds?: string[];
+  primaryImageId?: string;
+  imageBatchExpanded?: boolean;
+  inputOrder?: string[];
+  storageKey?: string;
+  mimeType?: string;
+  bytes?: number;
+};
+```
+
+不同节点的使用方式：
+
+- 图片节点：`content` 是 `/local-api/media` 展示 URL；`storageKey` 指向磁盘原始图片；`naturalWidth/naturalHeight/bytes/mimeType` 保存原图信息。
+- 视频和音频节点：`content` 是支持 Range 请求的本地媒体 URL；`storageKey` 指向磁盘原始媒体。
+- 文本节点：`content` 保存文本内容；`fontSize` 保存字体大小；`prompt/status/errorDetails` 保存生成状态。
+- 生成配置节点：`generationMode/model/size/count/inputOrder` 保存生成配置；`generationMode` 可选择文本、图片或视频；上游输入通过 `connections` 计算。
+- 图片组节点：根节点用 `isBatchRoot/batchChildIds/primaryImageId/imageBatchExpanded` 记录批量生成结果；子图节点用 `batchRootId` 指回根节点。
+
+## 连线结构
+
+每条连线是一个 `CanvasConnection`：
+
+```ts
+type CanvasConnection = {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+};
+```
+
+连线只保存节点 ID，不保存端口坐标。渲染时根据节点位置和尺寸计算路径。
+
+删除节点时会同步删除以该节点为起点或终点的连线。删除图片组根节点时，会把对应子节点一起删除。
+
+## 助手会话结构
+
+助手会话保存在画布项目内：
+
+```ts
+type CanvasAssistantSession = {
+  id: string;
+  title: string;
+  messages: CanvasAssistantMessage[];
+  createdAt: string;
+  updatedAt: string;
+};
+```
+
+消息结构：
+
+```ts
+type CanvasAssistantMessage = {
+  id: string;
+  role: "user" | "assistant";
+  mode: "ask" | "image";
+  text: string;
+  isLoading?: boolean;
+  references?: CanvasAssistantReference[];
+  images?: CanvasAssistantImage[];
+};
+```
+
+图片引用和助手生成图片也遵循同一套磁盘媒体规则。发送到 AI 接口前，如果接口需要 Base64，会通过 `imageToDataUrl` 临时转换；该 Base64 不会持久化。
+
+## 媒体写入流程
+
+图片通过 `uploadImage(input)`，视频、音频和附件通过 `uploadMediaFile(input, prefix)` 写入：
+
+1. 浏览器取得用户上传的 `File` 或 AI 生成的 `Blob`。
+2. 原始 Blob 作为 HTTP 二进制请求体发送给本机服务。
+3. 服务根据当前归属写入项目、素材库或工作台目录。
+4. 服务写入 `.part` 并计算 SHA-256，完成后原子重命名。
+5. 服务返回 `storageKey`、MIME、原文件名、字节数和 SHA-256。
+6. 前端收到成功结果后才创建节点、素材或生成记录。
+
+图片返回：
+
+```ts
+type UploadedImage = {
+  url: string;
+  storageKey: string;
+  width: number;
+  height: number;
+  bytes: number;
+  mimeType: string;
+};
+```
+
+图片节点会通过 `imageMetadata(image)` 写入：
+
+```ts
+{
+  content: image.url,
+  storageKey: image.storageKey,
+  status: "success",
+  naturalWidth: image.width,
+  naturalHeight: image.height,
+  bytes: image.bytes,
+  mimeType: image.mimeType
+}
+```
+
+`content` 是展示地址，长期标识仍是 `storageKey`。
+
+## 原始文件约束
+
+自动持久化链路禁止：
+
+- ZIP、gzip、Brotli 或其他压缩。
+- Base64 持久化。
+- 图片重新编码或降低质量。
+- 视频、音频转码。
+- 为节省空间修改 AI 服务返回的原始响应字节。
+
+ZIP 仅用于用户主动执行的画布/素材导入导出，不是自动持久化格式。
+
+## 媒体归属
+
+- 在画布中上传或生成：写入 `projects/<project-id>/assets/`。
+- 在“我的素材”中上传：写入 `library/assets/`。
+- 在生图、视频或音频工作台生成：写入对应 `workbenches/<kind>/assets/`。
+- 将画布或工作台媒体加入“我的素材”时，按原字节复制一份到 `library/assets/`。
+
+## 媒体移除和清理
+
+清理由本机服务根据磁盘中的全部正式 JSON 执行，不依赖浏览器是否已打开全部项目：
+
+1. 删除节点只删除引用，不立即删除文件。
+2. 删除项目会删除项目目录和对应媒体索引。
+3. 删除素材或生成记录后触发全局孤儿媒体扫描。
+4. 服务扫描项目、素材库、工作台和 `.bak` 中的 `storageKey`。
+5. 只有完全没有引用的媒体才会从磁盘和 `media-index.json` 中删除。
+
+这样可以避免懒加载项目、多标签页和上一版备份导致的误删。

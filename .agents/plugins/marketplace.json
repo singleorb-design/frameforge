@@ -1,0 +1,20 @@
+{
+  "name": "frameforge-local",
+  "interface": {
+    "displayName": "FrameForge"
+  },
+  "plugins": [
+    {
+      "name": "frameforge",
+      "source": {
+        "source": "local",
+        "path": "./plugins/frameforge"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

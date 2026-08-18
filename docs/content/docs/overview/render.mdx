@@ -1,0 +1,28 @@
+---
+title: Render 部署
+description: 使用 Render 部署影格工坊
+---
+
+# Render 部署
+
+点击下面链接即可部署到 Render：
+
+[部署到 Render](https://render.com/deploy?repo=https://github.com/basketikun/frameforge)
+
+## 部署步骤
+
+1. 点击 `Deploy to Render`。
+2. 登录 Render，并按页面提示连接 GitHub。
+3. 确认部署。
+
+部署完成后，打开 Render 分配的 `.onrender.com` 域名即可访问。
+
+## 免费版说明
+
+默认使用 Render 免费 Web Service：
+
+- 空闲约 15 分钟后会休眠，下次访问会自动唤醒。
+- 当前镜像尚未启动本机磁盘存储服务，也未挂载 `data/`。
+- 因此当前版本不支持通过 Render 使用完整画布功能。
+
+需要完整画布、素材和原始媒体持久化时，请在本地执行 `make`。后续需为云部署单独接入可持久化数据卷和存储服务。
