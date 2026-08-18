@@ -2,6 +2,7 @@
 
 ## Unreleased
 
++ [新增] FrameForge Codex 插件新增 `drama-production` skill，将短剧、AI 漫剧、资产、分镜、图片 Prompt、视频 Prompt 与表演层方法路由为画布生产流程。
 + [调整] 项目名称与技术标识统一更新为“影格工坊 / FrameForge / frameforge”，覆盖 README、文档站、浏览器标题、部署说明、Codex 插件、MCP、导出标识、本地存储 key 和项目目录。
 + [调整] 全站助手从 Codex app-server 切换为 Hermes ACP 连接，由本地 Canvas Agent 启动 `hermes-acp` 并注入画布 MCP 工具。
 + [修复] 整理角色设定统一改为先选择要发送的剧本章节，避免全文输入导致模型续写剧本或返回非 JSON。
